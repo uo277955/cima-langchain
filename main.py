@@ -30,7 +30,7 @@ def createQuery(question: str):
                 "fields": ["text"]
             }
         },
-        "size": 3,
+        "size": 5,
         "_source": ["text", "nombre", "prescripcion", "dosis", "receta", "fotos"]
     }
 
@@ -84,7 +84,7 @@ if openai_key and elastic_key:
         llm = ChatOpenAI(
             openai_api_key=openai_key,
             model_name="gpt-4o-mini",  # Puedes ajustar a otro modelo disponible
-            temperature=0.5,
+            temperature=0.1,
         )
 
         es_client = Elasticsearch(
@@ -134,17 +134,20 @@ if openai_key and elastic_key and "agent" in st.session_state:
             memory=st.session_state.memory,
             verbose=False,
             streaming=True,
+            max_iterations=5
+
         )
 
         with st.chat_message("assistant"):
             response_container = st.empty()
             final_response = ""
 
-            for chunk in agent_executor.stream({"input": user_input}):
-                token = chunk.get("output", "")
-                final_response += token
-                response_container.markdown(final_response + "▌")
+            response = agent_executor.invoke({"input": user_input})
 
+            final_response = response["output"]
+            if final_response == "Agent stopped due to max iterations.":
+                final_response = "Actualmente no tengo información en mi sistema como para poder responder a esa consulta."
+            
             response_container.markdown(final_response)
 
         st.session_state.chat_history.append({"role": "assistant", "content": final_response})
