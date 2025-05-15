@@ -6,6 +6,7 @@ from langchain.tools import StructuredTool
 from langchain.memory import ConversationBufferWindowMemory
 from langchain.agents import AgentExecutor, create_openai_tools_agent
 from pydantic import BaseModel, Field
+from langchain_core.messages import HumanMessage
 from typing import Dict
 import uuid
 
@@ -85,8 +86,7 @@ if openai_key and elastic_key:
     try:
         llm = ChatOpenAI(
             openai_api_key=openai_key,
-            model_name="gpt-4o-mini",  
-            temperature=0.1,
+            model_name="gpt-4o-mini"
         )
 
         es_client = Elasticsearch(
@@ -134,9 +134,7 @@ if openai_key and elastic_key and "agent" in st.session_state:
             agent=st.session_state.agent,
             tools=tools,
             memory=st.session_state.memory,
-            verbose=False,
-            streaming=True,
-            max_iterations=2
+            verbose=False
 
         )
 
@@ -148,7 +146,14 @@ if openai_key and elastic_key and "agent" in st.session_state:
 
             final_response = response["output"]
             if final_response == "Agent stopped due to max iterations.":
-                final_response = "Actualmente no tengo información en mi sistema como para poder responder a esa consulta."
+                fallback_prompt = HumanMessage(content=(
+                    "No has podido resolver la tarea con la información disponible. "
+                    "Explica en dos frases que no tienes suficiente información para resolver el problema y aconsejale hablar con su farmaceutico más cercano"
+                ))
+
+                # El modelo debe devolver una generación que contiene `.content`
+                response = llm([fallback_prompt])
+                final_response = response.content 
             
             response_container.markdown(final_response)
 
