@@ -30,7 +30,7 @@ def createQuery(question: str):
                 "fields": ["text"]
             }
         },
-        "size": 5,
+        "size": 3,
         "_source": ["text", "nombre", "prescripcion", "dosis", "receta", "fotos"]
     }
 
@@ -76,6 +76,8 @@ Responde siempre en un párrafo de manera amigable y profesional.
 
 Puedes acceder a información adicional si lo necesitas:
 {agent_scratchpad}
+
+Si después de unas iteraciones no encuentras la respuesta, responde educadamente y diciendo que aun no sabes responder, que no esta en tu base de conocimiento.
 """
 
 # --- Inicialización de servicios si hay claves ---
@@ -83,7 +85,7 @@ if openai_key and elastic_key:
     try:
         llm = ChatOpenAI(
             openai_api_key=openai_key,
-            model_name="gpt-4o-mini",  # Puedes ajustar a otro modelo disponible
+            model_name="gpt-4o-mini",  
             temperature=0.1,
         )
 
@@ -134,7 +136,7 @@ if openai_key and elastic_key and "agent" in st.session_state:
             memory=st.session_state.memory,
             verbose=False,
             streaming=True,
-            max_iterations=5
+            max_iterations=2
 
         )
 
