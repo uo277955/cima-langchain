@@ -1,0 +1,13 @@
+eland==8.18.2
+elastic-transport==8.17.1
+elasticsearch==8.18.1
+openai==1.78.0
+langchain==0.3.25
+langchain-community==0.3.24
+langchain-core==0.3.59
+langchain-elasticsearch==0.3.2
+langchain-openai==0.3.16
+langchain-text-splitters==0.3.8
+typing-inspect==0.9.0
+typing-inspection==0.4.0
+typing_extensions==4.13.2
