@@ -20,14 +20,27 @@ elastic_key = st.text_input("🔑 Elasticsearch API Key", type="password", key="
 ELASTIC_ENDPOINT="https://a651d368f9a74262abe48b46287674d6.europe-west3.gcp.cloud.es.io:443"
 INDEX = "cima-index"
 
-#Creamos el modelo llm
-llm = ChatOpenAI(openai_api_key=openai_key, model_name="gpt-4o-mini-2024-07-18", temperature = 0.5)
+# Solo ejecutar si se ingresan ambas claves
+if openai_key and elastic_key:
+    # Crear cliente OpenAI y Elasticsearch de forma segura
+    try:
+        llm = ChatOpenAI(
+            openai_api_key=openai_key,
+            model_name="gpt-4o-mini",  # Puedes omitir la fecha si da error
+            temperature=0.5,
+        )
 
-#Acceso a elasticsearch
-es_client = Elasticsearch(
-    ELASTIC_ENDPOINT,
-    api_key=elastic_key
-)
+        es_client = Elasticsearch(
+            ELASTIC_ENDPOINT,
+            api_key=elastic_key
+        )
+
+        st.success("✅ Conectado a OpenAI y Elasticsearch")
+
+    except Exception as e:
+        st.error(f"❌ Error inicializando servicios: {e}")
+else:
+    st.warning("🔒 Introduce ambas claves para continuar.")
 
 
 def createQuery(question: str):
