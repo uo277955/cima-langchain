@@ -16,14 +16,17 @@ st.title("💊 COFAS - Asistente Farmacéutico Inteligente")
 
 # --- Entrada de credenciales ---
 st.subheader("🔐 Introduce tus credenciales")
+
 openai_key = st.text_input("🔑 OpenAI API Key", type="password", key="openai_key_input")
 elastic_key = st.text_input("🔑 Elasticsearch API Key", type="password", key="elastic_key_input")
+
 
 ELASTIC_ENDPOINT = "https://a651d368f9a74262abe48b46287674d6.europe-west3.gcp.cloud.es.io:443"
 INDEX = "cima-index"
 
 # --- Función para construir query Elasticsearch ---
 def createQuery(question: str):
+    print(question)
     return {
         "query": {
             "multi_match": {
@@ -32,12 +35,13 @@ def createQuery(question: str):
             }
         },
         "size": 3,
-        "_source": ["text", "nombre", "prescripcion", "dosis", "receta", "fotos"]
+        "_source": ["text", "nombre", "prescripcion", "dosis", "receta", "fotos", "documento"]
     }
 
 # --- Función de búsqueda en Elasticsearch ---
 def elastic_search(question: str):
     global es_client
+    st.session_state.recommendations = []
     if es_client is None:
         return "El cliente Elasticsearch no está inicializado."
     query = createQuery(question)
@@ -52,34 +56,47 @@ def elastic_search(question: str):
         text = source.get("text", "")
         doc = f"Según la base de datos, el medicamento '{name}' tiene la siguiente información relevante: {text}"
         result_docs.append(doc)
+        print(source)
+        st.session_state.recommendations.append(source.get("documento"))
     return f"Usa esta información para responder a la pregunta: {question} \n" + "\n".join(result_docs)
 
 # --- Tool para LangChain ---
-class RagSearchInput(BaseModel):
-    question: str = Field(..., description="Consulta de búsqueda sobre medicamentos o dolencias.")
 
+class RagSearchInput(BaseModel):
+    question:str = Field(..., description="La query de busqueda para obtener el conocimiento")
 rag_search_tool = StructuredTool(
     name="RAG_Search",
     func=elastic_search,
-    description="Busca información en la base de datos sobre un medicamento o dolencia.",
+    description=(
+        "Usa esta función para buscar información sobre un medicamento o una dolencia. "
+        "**Input debe de contener la pregunta o la cuestion que hace el usuario si es necesario enriquecida con un poco de contexto** "
+    ),
     args_schema=RagSearchInput
 )
 
 # --- Prompt del agente ---
-context = """
-Eres un asistente de una farmacia.
-Responde a la pregunta: {input}
+context = context = """
+Eres un asistente experto de farmacia, cordial, claro y útil.
 
-Este es el historial de conversación reciente:
+Tu función principal es ayudar a los usuarios a encontrar información sobre medicamentos, dolencias y tratamientos, basándote en el conocimiento disponible o haciendo búsquedas si es necesario.
+
+Responde a la pregunta del usuario: {input}
+
+Historial reciente de la conversación:
 {history}
 
-Responde siempre en un párrafo de manera amigable y profesional.
-
-Puedes acceder a información adicional si lo necesitas:
 {agent_scratchpad}
 
-Si después de unas iteraciones no encuentras la respuesta, responde educadamente y diciendo que aun no sabes responder, que no esta en tu base de conocimiento.
+### Reglas de comportamiento:
+
+- Si tienes suficiente información o contexto, responde directamente.
+- Si tienes dudas o crees que falta información clave, haz una búsqueda con la herramienta disponible.
+- Si los resultados encontrados son parecidos pero no exactos, responde explicando la relación y las limitaciones.
+- Si tras algunas búsquedas no encuentras información útil, responde amablemente que no puedes responder con la información disponible.
+- Evita hacer búsquedas innecesarias, pero no dudes en hacerlas si pueden aportar valor.
+- Responde siempre en un solo párrafo, de forma empática y comprensible.
 """
+
 
 # --- Inicialización de servicios si hay claves ---
 if openai_key and elastic_key:
@@ -100,12 +117,14 @@ if openai_key and elastic_key:
             input_variables=["input", "history", "agent_scratchpad"],
             template=context
         )
+        if "recommendations" not in st.session_state:
+            st.session_state.recommendations = []
 
         if "agent" not in st.session_state:
             st.session_state.agent = create_openai_tools_agent(llm, tools, prompt)
 
         if "memory" not in st.session_state:
-            st.session_state.memory = ConversationBufferWindowMemory(k=3, return_messages=True)
+            st.session_state.memory = ConversationBufferWindowMemory(k=1, return_messages=True)
 
         if "chat_history" not in st.session_state:
             st.session_state.chat_history = []
@@ -129,7 +148,7 @@ if openai_key and elastic_key and "agent" in st.session_state:
         st.session_state.chat_history.append({"role": "user", "content": user_input})
         with st.chat_message("user"):
             st.markdown(user_input)
-
+        print(f"MEMORY: {st.session_state.memory}")
         agent_executor = AgentExecutor(
             agent=st.session_state.agent,
             tools=tools,
@@ -155,6 +174,10 @@ if openai_key and elastic_key and "agent" in st.session_state:
                 response = llm([fallback_prompt])
                 final_response = response.content 
             
+            
+            elif (len(st.session_state.recommendations)>0):
+                final_response + "\n" + "\n".join(st.session_state.recommendations)
             response_container.markdown(final_response)
+            st.session_state.recommendations= []
 
         st.session_state.chat_history.append({"role": "assistant", "content": final_response})
